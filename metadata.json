@@ -1,0 +1,6 @@
+{
+  "name": "Waypoint",
+  "description": "Know what your walk will actually be like. Neighborhood walking navigation, facilities & barrier reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
