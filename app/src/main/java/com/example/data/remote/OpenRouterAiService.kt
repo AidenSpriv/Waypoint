@@ -23,11 +23,11 @@ class OpenRouterAiService(
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
-        .build()
+        .build(),
+    private val workerUrl: String = "https://waypoint-ai-worker.your-account.workers.dev/chat"
 ) {
     companion object {
         private const val TAG = "OpenRouterAiService"
-        private const val OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
         private const val PRIMARY_MODEL = "openai/gpt-4o-mini"
         private const val SECONDARY_MODEL = "meta-llama/llama-3.3-70b-instruct"
     }
@@ -43,22 +43,6 @@ class OpenRouterAiService(
         barriers: List<BarrierReport>,
         isWalkingActive: Boolean
     ): String = withContext(Dispatchers.IO) {
-        val apiKey = try {
-            val keyFromConfig = BuildConfig::class.java.getField("OPENROUTER_API_KEY").get(null) as? String
-            if (!keyFromConfig.isNullOrBlank()) {
-                keyFromConfig
-            } else {
-                null
-            }
-        } catch (e: Exception) {
-            null
-        }
-
-        if (apiKey.isNullOrBlank()) {
-            Log.w(TAG, "OPENROUTER_API_KEY is not configured; using local fallback without calling OpenRouter")
-            return@withContext generateSmartFallback(userPrompt, activeRoute, pilotArea, facilities, barriers)
-        }
-
         val systemPrompt = buildSystemPrompt(
             pilotArea = pilotArea,
             activeRoute = activeRoute,
@@ -69,37 +53,15 @@ class OpenRouterAiService(
             isWalkingActive = isWalkingActive
         )
 
-        // Try primary model first, then fallback
-        try {
-            return@withContext callOpenRouter(apiKey, PRIMARY_MODEL, systemPrompt, history, userPrompt)
-        } catch (e: Exception) {
-            Log.w(TAG, "Primary model ($PRIMARY_MODEL) failed, trying secondary ($SECONDARY_MODEL): ${e.message}")
-            try {
-                return@withContext callOpenRouter(apiKey, SECONDARY_MODEL, systemPrompt, history, userPrompt)
-            } catch (fallbackEx: Exception) {
-                Log.e(TAG, "All models failed on OpenRouter: ${fallbackEx.message}", fallbackEx)
-                return@withContext generateSmartFallback(userPrompt, activeRoute, pilotArea, facilities, barriers)
-            }
-        }
-    }
-
-    private fun callOpenRouter(
-        apiKey: String,
-        modelName: String,
-        systemPrompt: String,
-        history: List<ChatMessage>,
-        userPrompt: String
-    ): String {
+        // Build the chat messages array the same way we did before,
+        // but send it to the Cloudflare Worker (not directly to OpenRouter).
         val messagesArray = JSONArray()
-
-        // 1. System instruction
         val systemObj = JSONObject().apply {
             put("role", "system")
             put("content", systemPrompt)
         }
         messagesArray.put(systemObj)
 
-        // 2. Recent conversation history (last 8 messages for context)
         val recentHistory = history.takeLast(8)
         for (msg in recentHistory) {
             val role = when (msg.sender) {
@@ -114,7 +76,6 @@ class OpenRouterAiService(
             messagesArray.put(msgObj)
         }
 
-        // 3. Current user message
         val currentObj = JSONObject().apply {
             put("role", "user")
             put("content", userPrompt)
@@ -122,41 +83,75 @@ class OpenRouterAiService(
         messagesArray.put(currentObj)
 
         val requestPayload = JSONObject().apply {
-            put("model", modelName)
+            put("model", PRIMARY_MODEL)
             put("messages", messagesArray)
             put("temperature", 0.7)
             put("max_tokens", 800)
         }
 
-        val requestBody = requestPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+        try {
+            val requestBody = requestPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url(workerUrl)
+                .addHeader("Content-Type", "application/json")
+                .post(requestBody)
+                .build()
 
-        val request = Request.Builder()
-            .url(OPENROUTER_URL)
-            .addHeader("Authorization", "Bearer $apiKey")
-            .addHeader("Content-Type", "application/json")
-            .addHeader("HTTP-Referer", "https://waypoint.doha.app")
-            .addHeader("X-Title", "WAYPOINT Walking Navigation")
-            .post(requestBody)
-            .build()
-
-        client.newCall(request).execute().use { response ->
-            val responseBody = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                throw IllegalStateException("OpenRouter returned HTTP ${response.code}: $responseBody")
-            }
-
-            val json = JSONObject(responseBody)
-            val choices = json.optJSONArray("choices")
-            if (choices != null && choices.length() > 0) {
-                val firstChoice = choices.getJSONObject(0)
-                val message = firstChoice.optJSONObject("message")
-                val text = message?.optString("content").orEmpty().trim()
-                if (text.isNotEmpty()) {
-                    return text
+            client.newCall(request).execute().use { response ->
+                val responseBody = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    Log.w(TAG, "Worker returned HTTP ${response.code}: $responseBody}")
+                    throw IllegalStateException("Worker returned HTTP ${response.code}")
                 }
-            }
 
-            throw IllegalStateException("Empty or malformed response from OpenRouter: $responseBody")
+                val json = JSONObject(responseBody)
+                val choices = json.optJSONArray("choices")
+                if (choices != null && choices.length() > 0) {
+                    val firstChoice = choices.getJSONObject(0)
+                    val message = firstChoice.optJSONObject("message")
+                    val text = message?.optString("content").orEmpty().trim()
+                    if (text.isNotEmpty()) {
+                        return@withContext text
+                    }
+                }
+                throw IllegalStateException("Empty or malformed response from worker")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Worker call failed (${e.message}), trying secondary model via worker fallback", e)
+            try {
+                val fallbackPayload = JSONObject().apply {
+                    put("model", SECONDARY_MODEL)
+                    put("messages", messagesArray)
+                    put("temperature", 0.7)
+                    put("max_tokens", 800)
+                }
+                val fallbackBody = fallbackPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                val fallbackRequest = Request.Builder()
+                    .url(workerUrl)
+                    .addHeader("Content-Type", "application/json")
+                    .post(fallbackBody)
+                    .build()
+                client.newCall(fallbackRequest).execute().use { response ->
+                    val responseBody = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        throw IllegalStateException("Secondary model worker call also failed: HTTP ${response.code}")
+                    }
+                    val json = JSONObject(responseBody)
+                    val choices = json.optJSONArray("choices")
+                    if (choices != null && choices.length() > 0) {
+                        val firstChoice = choices.getJSONObject(0)
+                        val message = firstChoice.optJSONObject("message")
+                        val text = message?.optString("content").orEmpty().trim()
+                        if (text.isNotEmpty()) {
+                            return@withContext text
+                        }
+                    }
+                    throw IllegalStateException("Empty or malformed response from worker (secondary model)")
+                }
+            } catch (fallbackEx: Exception) {
+                Log.e(TAG, "All worker attempts failed: ${fallbackEx.message}", fallbackEx)
+                return@withContext generateSmartFallback(userPrompt, activeRoute, pilotArea, facilities, barriers)
+            }
         }
     }
 
