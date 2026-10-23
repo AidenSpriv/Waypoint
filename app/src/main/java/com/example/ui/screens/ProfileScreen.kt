@@ -184,7 +184,7 @@ fun ProfileScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = userProfile.name.ifBlank { "Ahmed Al-Mansoori" },
+                                    text = userProfile.name.ifBlank { "" },
                                     color = TextPrimary,
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.Bold
@@ -207,7 +207,7 @@ fun ProfileScreen(
 
                             Spacer(modifier = Modifier.height(3.dp))
                             Text(
-                                text = userProfile.email.ifBlank { "cfnevertheless@gmail.com" },
+                                text = userProfile.email.ifBlank { "" },
                                 color = TextSecondary,
                                 fontSize = 13.sp
                             )

@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.io.File
 
 plugins {
   alias(libs.plugins.android.application)
@@ -33,7 +34,40 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
     }
     create("debugConfig") {
-      storeFile = file("${rootDir}/debug.keystore")
+      val localKeystore = file("${rootDir}/debug.keystore")
+      val defaultKeystore = File(System.getProperty("user.home"), ".android/debug.keystore")
+
+      val store = if (localKeystore.exists()) {
+        localKeystore
+      } else if (defaultKeystore.exists()) {
+        defaultKeystore
+      } else {
+        try {
+          val javaHome = System.getProperty("java.home")
+          val keytoolName = if (System.getProperty("os.name").lowercase().contains("win")) "keytool.exe" else "keytool"
+          val keytoolPath = File(javaHome, "bin/$keytoolName").takeIf { it.exists() }?.absolutePath ?: "keytool"
+          val process = ProcessBuilder(
+            keytoolPath,
+            "-genkey",
+            "-v",
+            "-keystore", localKeystore.absolutePath,
+            "-alias", "androiddebugkey",
+            "-keyalg", "RSA",
+            "-keysize", "2048",
+            "-validity", "10000",
+            "-storepass", "android",
+            "-keypass", "android",
+            "-dname", "CN=Android Debug,O=Android,C=US",
+            "-noprompt"
+          ).redirectErrorStream(true).start()
+          process.waitFor()
+        } catch (_: Exception) {
+          // Ignore if keytool fails or is unavailable
+        }
+        if (localKeystore.exists()) localKeystore else defaultKeystore
+      }
+
+      storeFile = store
       storePassword = "android"
       keyAlias = "androiddebugkey"
       keyPassword = "android"

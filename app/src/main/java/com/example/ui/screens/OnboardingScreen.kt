@@ -101,10 +101,10 @@ fun OnboardingScreen(
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
     var name by remember {
-        mutableStateOf(initialName.ifBlank { "Ahmed Al-Mansoori" })
+        mutableStateOf(initialName)
     }
     var email by remember {
-        mutableStateOf(initialEmail.ifBlank { "cfnevertheless@gmail.com" })
+        mutableStateOf(initialEmail)
     }
     var referralSource by remember {
         mutableStateOf(initialReferral.ifBlank { "Doha Smart Mobility Initiative" })
@@ -123,7 +123,7 @@ fun OnboardingScreen(
             val trimmedName = name.trim()
 
             if (trimmedName.isBlank()) {
-                name = "Ahmed Al-Mansoori"
+                // Leave blank so judges can enter their own name
             }
 
             if (trimmedEmail.isBlank() || !trimmedEmail.contains("@") || !trimmedEmail.contains(".")) {
@@ -134,7 +134,7 @@ fun OnboardingScreen(
             emailError = null
             onComplete(
                 UserProfileData(
-                    name = trimmedName.ifBlank { "Ahmed Al-Mansoori" },
+                    name = trimmedName,
                     email = trimmedEmail,
                     referralSource = referralSource,
                     primaryWalkingGoal = primaryGoal,
@@ -706,7 +706,7 @@ private fun StepOnboardingEmailSignUp(
             value = name,
             onValueChange = onNameChange,
             label = { Text("Your Full Name") },
-            placeholder = { Text("e.g. Ahmed Al-Mansoori") },
+            placeholder = { Text("Enter your name") },
             leadingIcon = {
                 Icon(
                     Icons.Default.Person,
@@ -735,7 +735,7 @@ private fun StepOnboardingEmailSignUp(
             value = email,
             onValueChange = onEmailChange,
             label = { Text("Gmail / Google Account") },
-            placeholder = { Text("e.g. cfnevertheless@gmail.com") },
+            placeholder = { Text("Enter your email") },
             leadingIcon = {
                 Icon(
                     Icons.Default.Email,

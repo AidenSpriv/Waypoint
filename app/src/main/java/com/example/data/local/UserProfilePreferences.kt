@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 
 data class UserProfileData(
-    val name: String = "Ahmed Al-Mansoori",
-    val email: String = "cfnevertheless@gmail.com",
+    val name: String = "",
+    val email: String = "",
     val referralSource: String = "Doha Smart Mobility Initiative",
     val primaryWalkingGoal: String = "Maximum Shade & Heat Avoidance",
     val preferredPace: String = "Normal (4 km/h)",
@@ -33,8 +33,8 @@ class UserProfilePreferences(context: Context) {
 
     fun getUserProfile(): UserProfileData {
         val isDone = prefs.getBoolean(KEY_ONBOARDING_DONE, false)
-        val defaultName = "Ahmed Al-Mansoori"
-        val defaultEmail = "cfnevertheless@gmail.com"
+        val defaultName = ""
+        val defaultEmail = ""
         val defaultReferral = "Doha Smart Mobility Initiative"
         val defaultGoal = "Maximum Shade & Heat Avoidance"
         return UserProfileData(
