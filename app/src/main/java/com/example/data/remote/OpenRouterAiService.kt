@@ -23,7 +23,7 @@ class OpenRouterAiService(
         .readTimeout(45, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build(),
-    private val workerUrl: String = "https://waypoint-ai-worker.your-account.workers.dev/chat"
+    private val workerUrl: String = "https://waypoint-ai-worker.waypoint-aiden.workers.dev/chat"
 ) {
     companion object {
         private const val TAG = "OpenRouterAiService"
