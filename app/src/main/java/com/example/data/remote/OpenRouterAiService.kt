@@ -1,7 +1,6 @@
 package com.example.data.remote
 
 import android.util.Log
-import com.example.BuildConfig
 import com.example.data.model.BarrierReport
 import com.example.data.model.ChatMessage
 import com.example.data.model.Facility
