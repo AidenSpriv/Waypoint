@@ -10,13 +10,19 @@ app/src/main/java/com/example/data/remote/OpenRouterAiService.kt
 ```
 Replace `https://waypoint-ai-worker.your-account.workers.dev/chat` with your deployed Worker URL.
 
-## Deploy the Worker (Windows)
+## Deploy the Worker (Windows — run from the `worker` folder)
+
+Run all `wrangler` commands from inside the `worker/` directory (where `wrangler.toml` lives):
+
+```powershell
+cd worker
+```
 
 1. Install `wrangler` (Cloudflare CLI) globally:
 ```powershell
 npm install -g wrangler
 ```
-2. Log in:
+2. Log in (from `worker/`):
 ```powershell
 wrangler login
 ```
@@ -25,7 +31,7 @@ wrangler login
 wrangler secret put OPENROUTER_API_KEY
 # Paste your real OpenRouter key when prompted
 ```
-4. Deploy:
+4. Deploy (from `worker/`):
 ```powershell
 wrangler deploy
 ```
